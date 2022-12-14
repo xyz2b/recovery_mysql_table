@@ -5,3 +5,5 @@
 备份文件需要使用innobackupex物理备份，是否使用压缩，通过recovery.config中的backup_use_compress参数控制
 
 需要通过recovery.config来设置回档时间和回档表，同时需要设置回档mysql实例和源mysql实例的一些参数
+
+通过sh start.sh启动
