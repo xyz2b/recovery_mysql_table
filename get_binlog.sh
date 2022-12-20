@@ -33,42 +33,61 @@ mysql_bin_log_start_file_modify_time=`date '+%Y-%m-%d %H:%M:%S' -r $mysql_bin_lo
 mysql_bin_log_start_file_modify_timestamp=`date +%s -d "$mysql_bin_log_start_file_modify_time"`
 echo "[`date +%Y%m%d%H%M%S`] | fileanme: "$BASH_SOURCE" | line_number: "$LINENO" | find first mysql binlog file after $recovery_date: $mysql_bin_log_end_file"
 
-# 在这个binlog中，以恢复时间点为stop-datetime，找到恢复时间点的gtid
-$mysql_bin/mysqlbinlog --stop-datetime="$recovery_date" $mysql_bin_log_end_file > $mysql_backup_temp_dir/$mysql_bin_log_end_file.list
-if [ $? -ne 0 ];then
-  echo "[`date +%Y%m%d%H%M%S`] | fileanme: "$BASH_SOURCE" | line_number: "$LINENO" | Parse $mysql_bin_log_end_file failed"
-  rm -fr $mysql_backup_temp_dir
-  exit -1
-fi
+while true
+do
+  # 在这个binlog中，以恢复时间点为stop-datetime，找到恢复时间点的gtid
+  $mysql_bin/mysqlbinlog --stop-datetime="$recovery_date" $mysql_bin_log_end_file > $mysql_backup_temp_dir/$mysql_bin_log_end_file.list
+  if [ $? -ne 0 ];then
+    echo "[`date +%Y%m%d%H%M%S`] | fileanme: "$BASH_SOURCE" | line_number: "$LINENO" | Parse $mysql_bin_log_end_file failed"
+    rm -fr $mysql_backup_temp_dir
+    exit -1
+  fi
 
-mysql_start_gtid_no=`echo "$mysql_start_gtid"|awk -F"-" '{print $6}'`
-mysql_uuid=`echo "$mysql_start_gtid"|awk -F':' '{print $1}'`
-# get_binlog.sh，需要传入gtid，传入的gtid，从init_temp_mysql_instance.sh中返回mysql_start_gtid即可
-# 然后拿到uuid，然后直接倒序匹配最后一行，判断是否为空，不为空，然后再匹配一下GTID_NEXT，如果有GTID_NEXT就是单事务的，直接返回，如果没有GTID_NEXT，就是一段，需要匹配到最后的序号，拼上UUID返回
-# 避免根据回档时间点找到的是一个空的binlog
-# binlog开头一定有 Previous-GTIDs，指示前一个binlog的gtid范围，1e54ba88-27ee-11eb-994b-525400b3e8d5:1-2163637
-# 正常事务的gtid：GTID_NEXT= '1e54ba88-27ee-11eb-994b-525400b3e8d5:2163638'
-mysql_end_gtid_line=`tac $mysql_backup_temp_dir/$mysql_bin_log_end_file.list|grep "$mysql_uuid"|head -1`
-is_gtid_next=`echo "$mysql_end_gtid_line"|grep "GTID_NEXT"|wc -l`
-# Previous-GTIDs
-if [ $is_gtid_next -eq 0 ];then
-	mysql_revious_gtids=`echo "$mysql_end_gtid_line"|awk '{print $2}'`
-	mysql_end_gtid_no=`echo "$mysql_revious_gtids"|awk -F"-" '{print $6}'`
-	mysql_end_gtid=`echo "$mysql_uuid:$mysql_end_gtid_no"`
-else	# GTID_NEXT
-	mysql_end_gtid=`echo "$mysql_end_gtid_line"|cut -f 2 -d"'"`
-	mysql_end_gtid_no=`echo "$mysql_end_gtid"|awk -F":" '{print $2}'`
-fi
+  #mysql_start_gtid_no=`echo "$mysql_start_gtid"|awk -F"-" '{print $6}'`
+  #mysql_uuid=`echo "$mysql_start_gtid"|awk -F':' '{print $1}'`
+  # get_binlog.sh，需要传入gtid，传入的gtid，从init_temp_mysql_instance.sh中返回mysql_start_gtid即可
+  # 然后拿到uuid，然后直接倒序匹配最后一行，判断是否为空，不为空，然后再匹配一下GTID_NEXT，如果有GTID_NEXT就是单事务的，直接返回，如果没有GTID_NEXT，就是一段，需要匹配到最后的序号，拼上UUID返回
+  # 避免根据回档时间点找到的是一个空的binlog
+  # binlog开头一定有 Previous-GTIDs，指示前一个binlog的gtid范围，1e54ba88-27ee-11eb-994b-525400b3e8d5:1-2163637
+  # 正常事务的gtid：GTID_NEXT= '1e54ba88-27ee-11eb-994b-525400b3e8d5:2163638'
+  #mysql_end_gtid_line=`tac $mysql_backup_temp_dir/$mysql_bin_log_end_file.list|grep "$mysql_uuid"|head -1`
+  #is_gtid_next=`echo "$mysql_end_gtid_line"|grep "GTID_NEXT"|wc -l`
+  # Previous-GTIDs
+  #if [ $is_gtid_next -eq 0 ];then
+  #	mysql_revious_gtids=`echo "$mysql_end_gtid_line"|awk '{print $2}'`
+  #	mysql_end_gtid_no=`echo "$mysql_revious_gtids"|awk -F"-" '{print $6}'`
+  #	mysql_end_gtid=`echo "$mysql_uuid:$mysql_end_gtid_no"`
+  #else	# GTID_NEXT
+  #	mysql_end_gtid=`echo "$mysql_end_gtid_line"|cut -f 2 -d"'"`
+  #	mysql_end_gtid_no=`echo "$mysql_end_gtid"|awk -F":" '{print $2}'`
+  #fi
+  mysql_end_gtid=`tac $mysql_backup_temp_dir/$mysql_bin_log_end_file.list|grep "GTID_NEXT"|grep -v "AUTOMATIC"|head -1|awk -F"'" '{print $2}'`
+  # 找到的gtid为空，找到上一个binlog，继续找gtid，直到找到或者binlog尾号为0
+
+    if [[ $mysql_end_gtid == '' ]];then
+      binlog_no=`echo $mysql_bin_log_end_file|awk -F'.' '{print $2}'|sed -r 's/0*([0-9])/\1/'`
+      ((before_binlog_no = binlog_no - 1))
+      if [ $before_binlog_no -eq 0 ];then
+        echo "[`date +%Y%m%d%H%M%S`] | fileanme: "$BASH_SOURCE" | line_number: "$LINENO" | Can't find end log gtid before $recovery_date in $mysql_bin_log_end_file"
+        rm -fr $mysql_backup_temp_dir
+        exit -2 
+      fi
+      mysql_bin_log_end_file=`echo "$mysql_bin_log_file_prefix.$before_binlog_no"`
+    else
+      break
+    fi
+done
+
 if [[ $mysql_end_gtid == '' ]];then
   echo "[`date +%Y%m%d%H%M%S`] | fileanme: "$BASH_SOURCE" | line_number: "$LINENO" | Can't find end log gtid before $recovery_date in $mysql_bin_log_end_file"
   rm -fr $mysql_backup_temp_dir
   exit -2
 fi
-if [ $mysql_end_gtid_no -lt $mysql_start_gtid_no ];then
-  echo "[`date +%Y%m%d%H%M%S`] | fileanme: "$BASH_SOURCE" | line_number: "$LINENO" | find end log gtid: $mysql_end_gtid in $mysql_bin_log_end_file is less than start log gtid: $mysql_start_gtid in xbackup file"
-  rm -fr $mysql_backup_temp_dir
-  exit -2
-fi
+#if [ $mysql_end_gtid_no -lt $mysql_start_gtid_no ];then
+#  echo "[`date +%Y%m%d%H%M%S`] | fileanme: "$BASH_SOURCE" | line_number: "$LINENO" | find end log gtid: $mysql_end_gtid in $mysql_bin_log_end_file is less than start log gtid: $mysql_start_gtid in xbackup file"
+#  rm -fr $mysql_backup_temp_dir
+#  exit -2
+#fi
 echo "[`date +%Y%m%d%H%M%S`] | fileanme: "$BASH_SOURCE" | line_number: "$LINENO" | find first mysql binlog item before $recovery_date in $mysql_bin_log_end_file, this item gtid: $mysql_end_gtid"
 
 rm -fr $mysql_backup_temp_dir/$mysql_bin_log_end_file.list
