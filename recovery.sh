@@ -328,23 +328,22 @@ do
 	  exit -1
 	fi
 
-	executed_gtid_set=`echo "$recovery_mysql_slave_status"|grep Executed_Gtid_Set|awk '{print $2}'`
+	executed_gtid_set=`echo "$recovery_mysql_slave_status"|sed -n '/Executed_Gtid_Set/,/Auto_Position/{p}'|grep -v Auto_Position|sed 's/Executed_Gtid_Set://g'|sed 's/ //g'|xargs`
 	slave_sql_running=`echo "$recovery_mysql_slave_status"|grep Slave_SQL_Running|awk '{print $2}'`
 	last_errno=`echo "$recovery_mysql_slave_status"|grep Last_Errno|awk '{print $2}'`
 	last_error=`echo "$recovery_mysql_slave_status"|grep Last_Error|awk '{print $2}'`
 	replicate_wild_do_table=`echo "$recovery_mysql_slave_status"|grep Replicate_Wild_Do_Table|awk '{print $2}'`
 	slave_SQL_running_state=`echo "$recovery_mysql_slave_status"|grep Slave_SQL_Running_State|awk -F":" '{print $2}'`
 
-	if [[ $executed_gtid_set == '' ]];then
-		echo "Waiting for slave workers to process their queues, sleep 5s, do next check, slave_sql_running=$slave_sql_running, slave_SQL_running_state=$slave_SQL_running_state"
-		sleep 5
-		continue
-	fi
+#	if [[ $executed_gtid_set == '' ]];then
+#		echo "Waiting for slave workers to process their queues, sleep 5s, do next check, slave_sql_running=$slave_sql_running, slave_SQL_running_state=$slave_SQL_running_state"
+#		sleep 5
+#		continue
+#	fi
 
-	retrieved_gtid_set_no=`echo $retrieved_gtid_set|awk -F':' '{print $NF}'|awk -F'-' '{print $NF}'`
-	executed_gtid_set_no=`echo $executed_gtid_set|awk -F':' '{print $NF}'|awk -F'-' '{print $NF}'`
+#	executed_gtid_set_no=`echo $executed_gtid_set|awk -F':' '{print $NF}'|awk -F'-' '{print $NF}'`
 
-	if [ $mysql_end_gtid_no -eq $executed_gtid_set_no ];then
+	if [[ $slave_sql_running == "No" ]];then
 		if [ $last_errno -eq 0 ];then
 			# 完成同步
 			echo "[`date +%Y%m%d%H%M%S`] | fileanme: "$BASH_SOURCE" | line_number: "$LINENO" | playback complete, slave_sql_running=$slave_sql_running, last_errno=$last_errno, last_error=$last_error, replicate_wild_do_table=$replicate_wild_do_table, executed_gtid_set=$executed_gtid_set, mysql_end_gtid=$mysql_end_gtid, slave_SQL_running_state=$slave_SQL_running_state"
