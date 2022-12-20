@@ -50,6 +50,7 @@ if [ ! -f xtrabackup_binlog_info ];then
 fi
 mysql_bin_log_start_file=`cat xtrabackup_binlog_info|head -1|cut -f 1`
 mysql_start_log_pos=`cat xtrabackup_binlog_info|head -1|cut -f 2`
+mysql_gtid_set=`cat xtrabackup_binlog_info|cut -f 3|xargs`
 mysql_start_gtid=`cat xtrabackup_binlog_info|cut -f 3|xargs|egrep -o "${server_uuid}:[0-9]{1,}-[0-9]{1,}"`
 mysql_bin_log_start_file_modify_time=`date '+%Y-%m-%d %H:%M:%S' -r $mysql_bin_log_start_file`
 mysql_bin_log_start_file_modify_timestamp=`date +%s -d "%mysql_bin_log_start_file_modify_time"`
@@ -79,6 +80,7 @@ rm -fr $mysql_recovery_backup_temp_dir
 
 echo "[`date +%Y%m%d%H%M%S`] | fileanme: "$BASH_SOURCE" | line_number: "$LINENO" | init temp mysql $mysql_recovery_host:$mysql_recovery_port completed"
 
+echo "mysql_gtid_set=$mysql_gtid_set"
 echo "mysql_start_gtid=$mysql_start_gtid"
 echo "mysql_start_log_pos=$mysql_start_log_pos"
 echo "mysql_bin_log_start_file=$mysql_bin_log_start_file"
