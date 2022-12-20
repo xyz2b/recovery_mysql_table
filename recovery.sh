@@ -49,6 +49,15 @@ if [ $? -ne 0 ];then
 fi
 
 
+export MYSQL_PWD=$mysql_recovery_password
+mysql_client="$mysql_bin/mysql -h $mysql_host -u $mysql_user -P $mysql_port -N -B"
+server_uuid=`$mysql_client -e "show global variables like 'server_uuid';"|awk '{print $2}'`
+if [ $? -ne 0 ];then
+  echo "[`date +%Y%m%d%H%M%S`] | fileanme: "$BASH_SOURCE" | line_number: "$LINENO" | show server uuid from mysql instance $mysql_host:$mysql_port failed"
+  exit -1
+fi
+echo "server_uuid=$server_uuid" >> temp.config
+
 # 将获取到的全备文件传送到临时实例，然后初始化临时实例上的mysql，停止进程，清理data和logs目录，然后将全备恢复出来
 mysql_recovery_server_stdout=`ssh $mysql_recovery_linux_user@$mysql_recovery_host "/bin/mkdir -p $mysql_recovery_backup_temp_dir"`
 if [ $? -ne 0 ];then
@@ -229,7 +238,6 @@ rm -fr $mysql_recovery_backup_temp_dir
 sleep 5
 
 # 操作临时库，回放relaylog
-export MYSQL_PWD=$mysql_recovery_password
 recovery_mysql_client="$mysql_recovery_bin/mysql -h $mysql_recovery_host -u $mysql_recovery_user -P $mysql_recovery_port -N -B"
 recovery_mysql_client_with_column_name="$mysql_recovery_bin/mysql -h $mysql_recovery_host -u $mysql_recovery_user -P $mysql_recovery_port -B"
 
@@ -377,8 +385,6 @@ if [ $? -ne 0 ];then
 fi
 
 /bin/mkdir -p $mysql_recovery_backup_temp_dir/ibd/
-
-mysql_client="$mysql_bin/mysql -h $mysql_host -u $mysql_user -P $mysql_port -N -B"
 
 # 修改表名，然后加载到待恢复库
 recovery_table_array=(${recovery_tables//,/ })

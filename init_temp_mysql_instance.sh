@@ -50,7 +50,7 @@ if [ ! -f xtrabackup_binlog_info ];then
 fi
 mysql_bin_log_start_file=`cat xtrabackup_binlog_info|cut -f 1`
 mysql_start_log_pos=`cat xtrabackup_binlog_info|cut -f 2`
-mysql_start_gtid=`cat xtrabackup_binlog_info|cut -f 3`
+mysql_start_gtid=`cat xtrabackup_binlog_info|cut -f 3|xargs|egrep -o "${server_uuid}:[0-9]{1,}-[0-9]{1,}"`
 mysql_bin_log_start_file_modify_time=`date '+%Y-%m-%d %H:%M:%S' -r $mysql_bin_log_start_file`
 mysql_bin_log_start_file_modify_timestamp=`date +%s -d "%mysql_bin_log_start_file_modify_time"`
 echo "[`date +%Y%m%d%H%M%S`] | fileanme: "$BASH_SOURCE" | line_number: "$LINENO" | in mysql data innobackupex backup file $backup_file, mysql binglog file: mysql_bin_log_start_file; pos: $mysql_start_log_pos; gtid: $mysql_start_gtid"
