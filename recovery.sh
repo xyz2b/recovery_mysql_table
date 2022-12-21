@@ -134,11 +134,11 @@ if [[ $mysql_start_gtid == '' ]];then
   exit -6
 fi
 echo "mysql_start_gtid=$mysql_start_gtid" >> temp.config
-mysql_gtid_set=`echo "$mysql_recovery_server_stdout"|tail -4|head -1|grep mysql_gtid_set|cut -f 2 -d'='`
-if [[ $mysql_gtid_set == '' ]];then
-  echo "[`date +%Y%m%d%H%M%S`] | fileanme: "$BASH_SOURCE" | line_number: "$LINENO" | Can not find mysql_gtid_set in xbackup backup file"
-  exit -6
-fi
+#mysql_gtid_set=`echo "$mysql_recovery_server_stdout"|tail -4|head -1|grep mysql_gtid_set|cut -f 2 -d'='`
+#if [[ $mysql_gtid_set == '' ]];then
+#  echo "[`date +%Y%m%d%H%M%S`] | fileanme: "$BASH_SOURCE" | line_number: "$LINENO" | Can not find mysql_gtid_set in xbackup backup file"
+#  exit -6
+#fi
 
 rm -fr $mysql_recovery_backup_temp_dir/*
 
@@ -175,17 +175,17 @@ fi
 echo "$mysql_server_stdout"
 
 mysql_end_gtid=`echo "$mysql_server_stdout"|tail -1|grep mysql_end_gtid|cut -f 2 -d'='`
+mysql_end_uuid=`echo "$mysql_end_gtid"|awk -F':' '{print $1}'`
 # mysql_end_gtid需要加1，因为是SQL_BEFORE_GTIDS，需要回放到mysql_end_gtid，还要往后移一位
 mysql_end_gtid_no=`echo "$mysql_end_gtid"|awk -F':' '{print $2}'|awk -F'-' '{print $NF}'`
 if [ ! -n "$(echo $mysql_end_gtid_no | sed -n "/^[0-9]\+$/p")" ];then
   echo "[`date +%Y%m%d%H%M%S`] | fileanme: "$BASH_SOURCE" | line_number: "$LINENO" | end gtid no: $mysql_end_gtid_no is not number"
   exit -6
 fi
-mysql_end_uuid=`echo "$mysql_end_gtid"|awk -F':' '{print $1}'`
 ((mysql_sql_brefore_gtid_no = mysql_end_gtid_no + 1))
-# mysql_sql_brefore_gtid=`echo "$server_uuid:$mysql_sql_brefore_gtid_no"`
-mysql_server_uuid_gtid_no=`echo $mysql_gtid_set|awk -F', ' '{i=1; while(i<=NF){if(match($i, /'$mysql_end_uuid'/) > 0) print $i; i++ }}'|awk -F'-' '{print $NF}'`
-mysql_gtid_set=`echo $mysql_gtid_set|awk -F', ' '{i=1; while(i<=NF){if(match($i, /'$mysql_end_uuid'/) > 0)  sub('$mysql_server_uuid_gtid_no', '$mysql_sql_brefore_gtid_no', $i); if(i==NF){ printf "%s",$i } else {printf "%s, ",$i}; i++ }}'`
+mysql_sql_brefore_gtid=`echo "$mysql_end_uuid:$mysql_sql_brefore_gtid_no"`
+#mysql_server_uuid_gtid_no=`echo $mysql_gtid_set|awk -F', ' '{i=1; while(i<=NF){if(match($i, /'$mysql_end_uuid'/) > 0) print $i; i++ }}'|awk -F'-' '{print $NF}'`
+#mysql_gtid_set=`echo $mysql_gtid_set|awk -F', ' '{i=1; while(i<=NF){if(match($i, /'$mysql_end_uuid'/) > 0)  sub('$mysql_server_uuid_gtid_no', '$mysql_sql_brefore_gtid_no', $i); if(i==NF){ printf "%s",$i } else {printf "%s, ",$i}; i++ }}'`
 binlog_package=`echo "$mysql_server_stdout"|tail -2|head -1|grep binlog_package|cut -f 2 -d'='`
 
 scp $mysql_linux_user@$mysql_host:$mysql_backup_temp_dir/$binlog_package $mysql_recovery_backup_temp_dir/
@@ -333,9 +333,9 @@ if [ $? -ne 0 ];then
 fi
  
 ## 只需要开启SQL线程对指定的relay log开始回放即可
-$recovery_mysql_client -e "START SLAVE SQL_THREAD UNTIL SQL_BEFORE_GTIDS=\"$mysql_gtid_set\";"
+$recovery_mysql_client -e "START SLAVE SQL_THREAD UNTIL SQL_BEFORE_GTIDS=\"$mysql_sql_brefore_gtid\";"
 if [ $? -ne 0 ];then
-  echo "[`date +%Y%m%d%H%M%S`] | fileanme: "$BASH_SOURCE" | line_number: "$LINENO" | start slave sql_thread UNTIL SQL_BEFORE_GTIDS=$mysql_gtid_set failed"
+  echo "[`date +%Y%m%d%H%M%S`] | fileanme: "$BASH_SOURCE" | line_number: "$LINENO" | start slave sql_thread UNTIL SQL_BEFORE_GTIDS=$mysql_sql_brefore_gtid failed"
   exit -1
 fi
  
