@@ -185,7 +185,7 @@ mysql_end_uuid=`echo "$mysql_end_gtid"|awk -F':' '{print $1}'`
 ((mysql_sql_brefore_gtid_no = mysql_end_gtid_no + 1))
 # mysql_sql_brefore_gtid=`echo "$server_uuid:$mysql_sql_brefore_gtid_no"`
 mysql_server_uuid_gtid_no=`echo $mysql_gtid_set|awk -F', ' '{i=1; while(i<=NF){if(match($i, /'$mysql_end_uuid'/) > 0) print $i; i++ }}'|awk -F'-' '{print $NF}'`
-mysql_gtid_set=`echo $mysql_gtid_set|awk -F', ' '{i=1; while(i<=NF){if(match($i, /'$mysql_end_uuid'/) > 0)  sub('$mysql_end_gtid_no', '$mysql_sql_brefore_gtid_no', $i); if(i==NF){ printf "%s",$i } else {printf "%s, ",$i}; i++ }}'`
+mysql_gtid_set=`echo $mysql_gtid_set|awk -F', ' '{i=1; while(i<=NF){if(match($i, /'$mysql_end_uuid'/) > 0)  sub('$mysql_server_uuid_gtid_no', '$mysql_sql_brefore_gtid_no', $i); if(i==NF){ printf "%s",$i } else {printf "%s, ",$i}; i++ }}'`
 binlog_package=`echo "$mysql_server_stdout"|tail -2|head -1|grep binlog_package|cut -f 2 -d'='`
 
 scp $mysql_linux_user@$mysql_host:$mysql_backup_temp_dir/$binlog_package $mysql_recovery_backup_temp_dir/
