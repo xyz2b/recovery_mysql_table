@@ -339,6 +339,8 @@ if [ $? -ne 0 ];then
   exit -1
 fi
  
+sleep 5
+
 ## 持续执行可看到binlog数据开始回放
 while :
 do
