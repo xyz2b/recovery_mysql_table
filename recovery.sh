@@ -176,7 +176,11 @@ echo "$mysql_server_stdout"
 
 mysql_end_gtid=`echo "$mysql_server_stdout"|tail -1|grep mysql_end_gtid|cut -f 2 -d'='`
 # mysql_end_gtid需要加1，因为是SQL_BEFORE_GTIDS，需要回放到mysql_end_gtid，还要往后移一位
-mysql_end_gtid_no=`echo "$mysql_end_gtid"|awk -F'-' '{print $NF}'`
+mysql_end_gtid_no=`echo "$mysql_end_gtid"|awk -F':' '{print $2}'`|awk -F'-' '{print $NF}'
+if [ ! -n "$(echo $mysql_end_gtid_no | sed -n "/^[0-9]\+$/p")" ];then
+  echo "[`date +%Y%m%d%H%M%S`] | fileanme: "$BASH_SOURCE" | line_number: "$LINENO" | end gtid no: $mysql_end_gtid_no is not number"
+  exit -6
+fi
 mysql_end_uuid=`echo "$mysql_end_gtid"|awk -F':' '{print $1}'`
 ((mysql_sql_brefore_gtid_no = mysql_end_gtid_no + 1))
 # mysql_sql_brefore_gtid=`echo "$server_uuid:$mysql_sql_brefore_gtid_no"`
